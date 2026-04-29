@@ -11,10 +11,17 @@ const generateToken = (id, role) => {
 // @access Public
 const register = async (req, res) => {
   try {
+    console.log("REGISTER HIT");
+    console.log("BODY:", req.body);
+
     const { role } = req.body;
 
+    // Normalize fields (🔥 THIS FIXES YOUR ISSUE)
+    const email = req.body.email;
+    const password = req.body.password;
+
     // Check if email already exists
-    const existingUser = await User.findOne({ email: req.body.email });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -23,13 +30,20 @@ const register = async (req, res) => {
     }
 
     if (role === 'vendor') {
-      const {
-        shopName, ownerName, email, password, phone,
-        shopAddress, serviceArea, serviceType, pricingInfo
-      } = req.body;
+      // Normalize vendor fields
+      const shopName = req.body.shopName;
+      const ownerName = req.body.ownerName || req.body.name;
+      const phone = req.body.phone || req.body.mobile;
+      const shopAddress = req.body.shopAddress || req.body.address;
+      const serviceArea = req.body.serviceArea || req.body.location || req.body.city;
+      const serviceType = req.body.serviceType;
+      const pricingInfo = req.body.pricingInfo || '';
 
       if (!shopName || !ownerName || !email || !password || !phone || !shopAddress || !serviceArea || !serviceType) {
-        return res.status(400).json({ success: false, message: 'All required vendor fields must be filled.' });
+        return res.status(400).json({
+          success: false,
+          message: 'All required vendor fields must be filled.'
+        });
       }
 
       // Create user record for vendor
@@ -55,7 +69,7 @@ const register = async (req, res) => {
         phone,
         shopAddress,
         serviceArea,
-        pricingInfo: pricingInfo || '',
+        pricingInfo,
         images
       });
 
@@ -67,12 +81,19 @@ const register = async (req, res) => {
         token,
         user: { ...user.toJSON(), vendorId: vendor._id }
       });
+
     } else {
-      // Regular user registration
-      const { name, email, password, phone, address, location } = req.body;
+      // Normalize user fields
+      const name = req.body.name || req.body.fullName;
+      const phone = req.body.phone || req.body.mobile;
+      const address = req.body.address || '';
+      const location = req.body.location || req.body.city || '';
 
       if (!name || !email || !password || !phone) {
-        return res.status(400).json({ success: false, message: 'All required fields must be filled.' });
+        return res.status(400).json({
+          success: false,
+          message: 'All required fields must be filled.'
+        });
       }
 
       const user = await User.create({
@@ -81,8 +102,8 @@ const register = async (req, res) => {
         password,
         role: 'user',
         phone,
-        address: address || '',
-        location: location || ''
+        address,
+        location
       });
 
       const token = generateToken(user._id, user.role);
@@ -94,9 +115,13 @@ const register = async (req, res) => {
         user: user.toJSON()
       });
     }
+
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -108,26 +133,37 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required.'
+      });
     }
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      });
     }
 
     if (user.isBlocked) {
-      return res.status(403).json({ success: false, message: 'Your account is blocked. Contact admin.' });
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is blocked. Contact admin.'
+      });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      });
     }
 
     const token = generateToken(user._id, user.role);
 
-    // If vendor, fetch vendor profile
     let vendorData = null;
     if (user.role === 'vendor') {
       vendorData = await Vendor.findOne({ ownerId: user._id });
@@ -140,9 +176,13 @@ const login = async (req, res) => {
       user: user.toJSON(),
       vendor: vendorData
     });
+
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -152,13 +192,23 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+
     let vendorData = null;
     if (user.role === 'vendor') {
       vendorData = await Vendor.findOne({ ownerId: user._id });
     }
-    res.status(200).json({ success: true, user: user.toJSON(), vendor: vendorData });
+
+    res.status(200).json({
+      success: true,
+      user: user.toJSON(),
+      vendor: vendorData
+    });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
