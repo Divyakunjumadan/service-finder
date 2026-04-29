@@ -20,7 +20,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: "https://service-finder-omega.vercel.app",
   credentials: true
 }));
 app.use(express.json());
